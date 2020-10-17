@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"log"
 
@@ -12,6 +13,8 @@ import (
 	browser "github.com/cvhariharan/cli-auth/pkg/utils"
 	"golang.org/x/oauth2"
 )
+
+var successHtml = `<html><body onload="javascript:window.open('','_self').close();"></body></html>`
 
 var authTokenStore = store.NewAuthTokenStore()
 
@@ -23,6 +26,7 @@ type OAuthFlow struct {
 	RedirectURL   string
 	OpenInBrowser bool
 	State         string
+	port          string
 }
 
 func NewOAuthFlow(configUrl, clientId, clientSecret, port, state string) (OAuthFlow, error) {
@@ -45,7 +49,7 @@ func NewOAuthFlow(configUrl, clientId, clientSecret, port, state string) (OAuthF
 
 // ObtainAccessToken opens a browser and follows the oauth flow and returns
 // an access token (JWT ID token) if everything goes fine
-func (o *OAuthFlow) ObtainAccessToken() (accessToken string, err error) {
+func (o *OAuthFlow) ObtainAccessToken() (*oauth2.Token, error) {
 	log.Println("Obtain token")
 	oauth2Config := oauth2.Config{
 		ClientID:     o.ClientID,
@@ -55,54 +59,44 @@ func (o *OAuthFlow) ObtainAccessToken() (accessToken string, err error) {
 		Scopes:       o.Scopes,
 	}
 
-	// oidcConfig := &oidc.Config{
-	// 	ClientID: o.ClientID,
-	// }
-	// verifier := o.Provider.Verifier(oidcConfig)
+	var token *oauth2.Token
+	log.Println(o.RedirectURL)
 
-	// Check if the auth token is cached, if not redirect to the login page in browser
-	token, err := authTokenStore.GetAuthToken()
-	if err == store.ErrTokenNotFound {
-		// Redirect to browser
-		log.Println(oauth2Config.AuthCodeURL(o.State))
-		browser.Open(oauth2Config.AuthCodeURL(o.State))
-		m := http.NewServeMux()
-		s := http.Server{Addr: ":7000", Handler: m}
-		m.HandleFunc("/success", func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.Background()
-			if r.URL.Query().Get("state") != o.State {
-				http.Error(w, "Invalid state", http.StatusBadRequest)
-				s.Shutdown(ctx)
-			}
+	m := http.NewServeMux()
 
-			oauth2Token, err := oauth2Config.Exchange(ctx, r.URL.Query().Get("code"))
-			if err != nil {
-				log.Println(err)
-				s.Shutdown(ctx)
-			}
-
-			rawIDToken, ok := oauth2Token.Extra("id_token").(string)
-			if !ok {
-				log.Println("Could not get ID token")
-			}
-
-			token = rawIDToken
-			log.Println("Token: ", token)
-
-			// Add to token store
-			authTokenStore.SetAuthToken(token)
-			s.Shutdown(ctx)
-		})
-
-		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
+	s := http.Server{Addr: ":7000", Handler: m}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	m.HandleFunc("/success", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") != o.State {
+			log.Println("error")
+			http.Error(w, "Invalid state", http.StatusBadRequest)
+			gracefulShutdown(ctx, &s)
 		}
 
-	} else {
+		var err error
+		token, err = oauth2Config.Exchange(ctx, r.URL.Query().Get("code"))
+		if err != nil {
+			log.Println(err)
+			gracefulShutdown(ctx, &s)
+		}
+		log.Println("Token: ", token)
+		fmt.Fprint(w, successHtml)
+		gracefulShutdown(ctx, &s)
+	})
 
-		// Valid if token is valid
-		log.Println("Already logged in: ", token)
-		return token, nil
+	browser.Open(oauth2Config.AuthCodeURL(o.State))
+
+	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
 	}
-	return "", nil
+
+	return token, nil
+}
+
+func gracefulShutdown(ctx context.Context, s *http.Server) {
+	go func() {
+		time.Sleep(1 * time.Second)
+		s.Shutdown(ctx)
+	}()
 }

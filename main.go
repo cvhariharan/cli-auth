@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/cvhariharan/cli-auth/pkg/auth"
@@ -33,5 +34,10 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	oa.ObtainAccessToken()
+	token, err := oa.ObtainAccessToken()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(token)
 }
