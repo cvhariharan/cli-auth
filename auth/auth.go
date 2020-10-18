@@ -9,8 +9,7 @@ import (
 	"log"
 
 	"github.com/coreos/go-oidc"
-	"github.com/cvhariharan/cli-auth/pkg/store"
-	browser "github.com/cvhariharan/cli-auth/pkg/utils"
+	browser "github.com/cvhariharan/cli-auth/utils"
 	"golang.org/x/oauth2"
 )
 
@@ -20,8 +19,6 @@ const (
 )
 
 var successHtml = `<html><body onload="javascript:window.open('','_self').close();"></body></html>`
-
-var authTokenStore = store.NewAuthTokenStore()
 
 type OAuthFlow struct {
 	Provider      *oidc.Provider
@@ -41,7 +38,6 @@ func NewOAuthFlow(configUrl, clientId, clientSecret, port, state string) (OAuthF
 		log.Println(err)
 		return OAuthFlow{}, err
 	}
-	log.Println("Init")
 	return OAuthFlow{
 		Provider:     provider,
 		ClientID:     clientId,
@@ -52,10 +48,9 @@ func NewOAuthFlow(configUrl, clientId, clientSecret, port, state string) (OAuthF
 	}, nil
 }
 
-// ObtainAccessToken opens a browser and follows the oauth flow and returns
-// an access token (JWT ID token) if everything goes fine
+// ObtainAccessToken takes in a code challenge and code challenge method to support PKCE flow and
+// opens a browser and follows the oauth flow and returns an oauth2 token if everything goes fine
 func (o *OAuthFlow) ObtainAccessToken(codeChallenge, challengeMethod string) (*oauth2.Token, error) {
-	log.Println("Obtain token")
 	oauth2Config := oauth2.Config{
 		ClientID:     o.ClientID,
 		ClientSecret: o.ClientSecret,
