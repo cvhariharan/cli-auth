@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/cvhariharan/cli-auth/pkg/auth"
+	"github.com/cvhariharan/cli-auth/auth"
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 	code "github.com/nirasan/go-oauth-pkce-code-verifier"
