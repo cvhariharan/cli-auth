@@ -14,6 +14,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	S256  = "S256"
+	PLAIN = "plain"
+)
+
 var successHtml = `<html><body onload="javascript:window.open('','_self').close();"></body></html>`
 
 var authTokenStore = store.NewAuthTokenStore()
@@ -49,7 +54,7 @@ func NewOAuthFlow(configUrl, clientId, clientSecret, port, state string) (OAuthF
 
 // ObtainAccessToken opens a browser and follows the oauth flow and returns
 // an access token (JWT ID token) if everything goes fine
-func (o *OAuthFlow) ObtainAccessToken() (*oauth2.Token, error) {
+func (o *OAuthFlow) ObtainAccessToken(codeChallenge, challengeMethod string) (*oauth2.Token, error) {
 	log.Println("Obtain token")
 	oauth2Config := oauth2.Config{
 		ClientID:     o.ClientID,
@@ -80,12 +85,12 @@ func (o *OAuthFlow) ObtainAccessToken() (*oauth2.Token, error) {
 			log.Println(err)
 			gracefulShutdown(ctx, &s)
 		}
-		log.Println("Token: ", token)
+
 		fmt.Fprint(w, successHtml)
 		gracefulShutdown(ctx, &s)
 	})
 
-	browser.Open(oauth2Config.AuthCodeURL(o.State))
+	browser.Open(oauth2Config.AuthCodeURL(o.State, oauth2.SetAuthURLParam("code_challenger", codeChallenge), oauth2.SetAuthURLParam("code_challenge_method", challengeMethod)))
 
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
