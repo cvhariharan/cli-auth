@@ -7,6 +7,7 @@ import (
 	"github.com/cvhariharan/cli-auth/pkg/auth"
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
+	code "github.com/nirasan/go-oauth-pkce-code-verifier"
 )
 
 const APPNAME = "AUTH"
@@ -34,7 +35,11 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	token, err := oa.ObtainAccessToken()
+
+	// PKCE flow
+	codeVerifier, _ := code.CreateCodeVerifier()
+	codeChallenge := codeVerifier.CodeChallengeS256()
+	token, err := oa.ObtainAccessToken(codeChallenge, auth.S256)
 	if err != nil {
 		log.Fatal(err)
 	}
