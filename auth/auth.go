@@ -45,6 +45,7 @@ func NewOAuthFlow(configUrl, clientId, clientSecret, port, state string) (OAuthF
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
 		RedirectURL:  fmt.Sprintf("http://localhost:%v/success", port),
 		State:        state,
+		port:         port,
 	}, nil
 }
 
@@ -64,7 +65,7 @@ func (o *OAuthFlow) ObtainAccessToken(codeChallenge, challengeMethod string) (*o
 
 	m := http.NewServeMux()
 
-	s := http.Server{Addr: ":7000", Handler: m}
+	s := http.Server{Addr: ":" + o.port, Handler: m}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	m.HandleFunc("/success", func(w http.ResponseWriter, r *http.Request) {
